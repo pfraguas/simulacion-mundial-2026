@@ -94,10 +94,3 @@ python src/live.py 50000                        # simulación in-tournament
   el resto se juega en cancha neutral.
 - **Supremacía lineal**: a diferencias de Elo muy grandes el λ del débil se satura en un
   piso; razonable pero simplificado.
-
-## Extensiones futuras
-
-- xG como señal secundaria de ajuste ataque/defensa donde haya datos confiables.
-- Mapeo oficial exacto del bracket de los 8 mejores terceros.
-- Modelo bayesiano jerárquico (ataque/defensa por equipo, ponderación temporal).
-- Actualización *in-tournament*: fijar partidos jugados y re-simular sólo lo restante.
