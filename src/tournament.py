@@ -45,17 +45,30 @@ class TeamState:
         return self.gf - self.ga
 
 
+# Alargue = 30 min = 1/3 de un partido de 90 -> se escalan las lambdas.
+EXTRA_TIME_FRAC = 30.0 / 90.0
+
+
 def _play_knockout(t_h, t_a, sampler, calib, neutral, rng):
-    """Juega un partido de eliminatoria y devuelve el ganador (resuelve empate)."""
+    """Resuelve un partido de eliminatoria y devuelve el ganador.
+
+    90' (Dixon-Coles) -> si empata, alargue de 30' (1/3 de partido) -> si sigue
+    empatado, penales 50/50 (sin sesgo: la tanda es practicamente azar).
+    """
     lam_h, lam_a = expected_goals(t_h.elo, t_a.elo, neutral, calib, calib["home_adv"])
     hs, as_ = sampler.sample(lam_h, lam_a)
     if hs > as_:
         return t_h
     if as_ > hs:
         return t_a
-    # Empate -> penales (leve sesgo por Elo).
-    p_home = 1.0 / (10.0 ** (-(t_h.elo - t_a.elo) / 400.0) + 1.0)
-    return t_h if rng.random() < p_home else t_a
+    # Empate en 90' -> alargue: 1/3 de la tasa de goles del partido.
+    eh, ea = sampler.sample(lam_h * EXTRA_TIME_FRAC, lam_a * EXTRA_TIME_FRAC)
+    if eh > ea:
+        return t_h
+    if ea > eh:
+        return t_a
+    # Sigue empatado -> penales 50/50.
+    return t_h if rng.random() < 0.5 else t_a
 
 
 # Sedes con ventaja de localia (anfitriones). El resto se juega en cancha neutral.
