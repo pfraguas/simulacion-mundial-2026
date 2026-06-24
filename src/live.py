@@ -18,12 +18,16 @@ y bien definidos). El bracket de eliminatoria es sembrado por fuerza, no posicio
 asi que fijar resultados de eliminatoria queda como refinamiento futuro.
 """
 import argparse
+import shutil
+import tempfile
 import time
+import urllib.request
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+import build_data
 from goals import ScoreSampler, load_calib
 from simulate import STAGES, load_team_defs
 from tournament import simulate_tournament
@@ -32,6 +36,45 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 OUT = ROOT / "outputs"
 _STAGE_IDX = {s: i for i, s in enumerate(STAGES)}
+
+RESULTS_URL = "https://raw.githubusercontent.com/martj42/international_results/master/results.csv"
+
+
+def update_data(timeout=30):
+    """Descarga el results.csv mas reciente y reconstruye Elo + grupos.
+
+    Si la descarga falla (sin red, etc.) avisa y sigue con la copia local.
+    Devuelve True si actualizo, False si uso la copia existente.
+    """
+    dest = DATA / "results.csv"
+    try:
+        before = pd.read_csv(dest)
+        n_before = before.dropna(subset=["home_score", "away_score"]).shape[0]
+    except FileNotFoundError:
+        n_before = None
+
+    repo = "/".join(RESULTS_URL.split("/")[3:5])  # martj42/international_results
+    print(f"Descargando resultados de {repo} ...")
+    try:
+        req = urllib.request.Request(RESULTS_URL, headers={"User-Agent": "mundial-sim"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = resp.read()
+        # Validar que es un CSV plausible antes de pisar el archivo bueno.
+        if not data or b"home_team" not in data[:200]:
+            raise ValueError("respuesta inesperada (no parece results.csv)")
+        with tempfile.NamedTemporaryFile("wb", delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+        n_after = pd.read_csv(tmp_path).dropna(subset=["home_score", "away_score"]).shape[0]
+        shutil.move(tmp_path, dest)
+    except Exception as e:  # red caida, timeout, etc. -> seguir con lo local
+        print(f"  ⚠ No se pudo actualizar ({e}). Uso la copia local.")
+        return False
+
+    print(f"  OK. Partidos con resultado: {n_before} -> {n_after}")
+    print("Reconstruyendo Elo y grupos...")
+    build_data.build(verbose=False)
+    return True
 
 
 def load_known_group_results(team_defs):
@@ -86,7 +129,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("n", nargs="?", type=int, default=50_000)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--no-update", action="store_true",
+                    help="no descargar resultados; usar la copia local")
     args = ap.parse_args()
+
+    if not args.no_update:
+        update_data()
+        print()
 
     calib = load_calib()
     team_defs, _ = load_team_defs()

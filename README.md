@@ -70,6 +70,10 @@ python src/live.py 50000                        # simulación in-tournament
   probabilidades a medida que avanza el Mundial. Compara contra la línea de base
   pre-torneo (`outputs/probabilidades.csv`). Sólo fija resultados de **fase de
   grupos**; el conteo de eliminatoria queda como refinamiento.
+  - **Auto-actualiza los datos**: al correrlo descarga el `results.csv` más
+    reciente de martj42 y reconstruye Elo/grupos antes de simular. Si no hay red,
+    avisa y sigue con la copia local. Usá `--no-update` para forzar la copia local
+    (offline o reproducibilidad).
 
 ## Verificación
 

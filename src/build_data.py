@@ -47,7 +47,8 @@ def derive_groups(wc_fixtures: pd.DataFrame) -> dict:
     return groups
 
 
-def main():
+def build(verbose=True):
+    """Recalcula elo_ratings.csv y groups.json desde data/results.csv."""
     played = load_played(RESULTS_CSV)
     elo, n_matches, last_date, _ = replay(played)
 
@@ -72,14 +73,16 @@ def main():
     with open(DATA / "groups.json", "w", encoding="utf-8") as f:
         json.dump(groups, f, ensure_ascii=False, indent=2)
 
-    print(f"Partidos historicos usados: {len(played):,}")
-    print(f"Selecciones Mundial 2026: {len(wc_teams)}  |  Grupos: {len(groups)}\n")
-    print("Top 10 por Elo:")
-    print(elo_df.head(10).to_string(index=False))
-    print("\nGrupos:")
-    for g, members in groups.items():
-        print(f"  {g}: {', '.join(members)}")
+    if verbose:
+        print(f"Partidos historicos usados: {len(played):,}")
+        print(f"Selecciones Mundial 2026: {len(wc_teams)}  |  Grupos: {len(groups)}\n")
+        print("Top 10 por Elo:")
+        print(elo_df.head(10).to_string(index=False))
+        print("\nGrupos:")
+        for g, members in groups.items():
+            print(f"  {g}: {', '.join(members)}")
+    return elo_df, groups
 
 
 if __name__ == "__main__":
-    main()
+    build()
