@@ -1,8 +1,8 @@
 {
-  "slope": 0.005116,
-  "base_total": 2.7363,
+  "slope": 0.005123,
+  "base_total": 2.7386,
   "rho": -0.05,
   "home_adv": 100.0,
-  "n_matches": 19681,
+  "n_matches": 19721,
   "window_since": "2006-01-01"
 }

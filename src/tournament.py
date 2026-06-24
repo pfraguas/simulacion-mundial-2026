@@ -45,23 +45,10 @@ class TeamState:
         return self.gf - self.ga
 
 
-def _play(t_h, t_a, sampler, calib, neutral, knockout, rng):
-    """Juega un partido, actualiza gf/ga de ambos y devuelve el ganador (KO)."""
+def _play_knockout(t_h, t_a, sampler, calib, neutral, rng):
+    """Juega un partido de eliminatoria y devuelve el ganador (resuelve empate)."""
     lam_h, lam_a = expected_goals(t_h.elo, t_a.elo, neutral, calib, calib["home_adv"])
     hs, as_ = sampler.sample(lam_h, lam_a)
-    t_h.gf += hs
-    t_h.ga += as_
-    t_a.gf += as_
-    t_a.ga += hs
-    if not knockout:
-        if hs > as_:
-            t_h.pts += 3
-        elif hs < as_:
-            t_a.pts += 3
-        else:
-            t_h.pts += 1
-            t_a.pts += 1
-        return None
     if hs > as_:
         return t_h
     if as_ > hs:
@@ -95,6 +82,57 @@ def _apply_known(by_name, home, away, hs, as_):
         ta.pts += 1
 
 
+def _h2h_stats(names, matches):
+    """Mini-tabla (pts, dg, gf) contando solo los partidos ENTRE 'names'."""
+    s = set(names)
+    stats = {n: [0, 0, 0] for n in names}  # [pts, dg, gf]
+    for home, away, hs, as_ in matches:
+        if home in s and away in s:
+            stats[home][1] += hs - as_
+            stats[home][2] += hs
+            stats[away][1] += as_ - hs
+            stats[away][2] += as_
+            if hs > as_:
+                stats[home][0] += 3
+            elif as_ > hs:
+                stats[away][0] += 3
+            else:
+                stats[home][0] += 1
+                stats[away][0] += 1
+    return stats
+
+
+def rank_group(teams, matches, rng):
+    """Ordena un grupo con los desempates oficiales FIFA 2026.
+
+    1) puntos  2-4) head-to-head entre empatados (pts, dg, gf)
+    5) dg general  6) gf general  7) sorteo (proxy de fair-play / ranking / lots).
+
+    El head-to-head se calcula dentro de cada bloque de equipos igualados en
+    puntos. La re-aplicacion recursiva de FIFA cuando un subconjunto se separa se
+    simplifica (caso de borde poco frecuente).
+    """
+    by_pts = {}
+    for t in teams:
+        by_pts.setdefault(t.pts, []).append(t.name)
+
+    h2h = {}
+    for pts, names in by_pts.items():
+        if len(names) > 1:  # solo hay empate que romper si son 2+ en ese puntaje
+            stats = _h2h_stats(names, matches)
+            h2h.update(stats)
+        else:
+            h2h[names[0]] = [0, 0, 0]
+
+    rnd = {t.name: rng.random() for t in teams}
+
+    def key(t):
+        hp, hgd, hgf = h2h[t.name]
+        return (t.pts, hp, hgd, hgf, t.gd, t.gf, rnd[t.name])
+
+    return sorted(teams, key=key, reverse=True)
+
+
 def simulate_group(teams, sampler, calib, rng, known=None):
     """Round-robin de un grupo de 4; devuelve la lista ordenada por posicion.
 
@@ -102,18 +140,21 @@ def simulate_group(teams, sampler, calib, rng, known=None):
     ya jugados. Esos no se simulan: se usa el marcador real.
     """
     by_name = {t.name: t for t in teams}
+    matches = []  # (home, away, hs, as_) -> necesario para el head-to-head
     for i in range(len(teams)):
         for j in range(i + 1, len(teams)):
             h, a = teams[i], teams[j]
             key = frozenset((h.name, a.name))
             if known and key in known:
-                _apply_known(by_name, *known[key])
+                home, away, hs, as_ = known[key]
             else:
-                _play(h, a, sampler, calib, _is_neutral(h, a), knockout=False, rng=rng)
-    # Orden: pts, dg, gf, desempate aleatorio.
-    rank_key = [(t.pts, t.gd, t.gf, rng.random()) for t in teams]
-    order = sorted(range(len(teams)), key=lambda k: rank_key[k], reverse=True)
-    return [teams[k] for k in order]
+                neutral = _is_neutral(h, a)
+                lam_h, lam_a = expected_goals(h.elo, a.elo, neutral, calib, calib["home_adv"])
+                hs, as_ = sampler.sample(lam_h, lam_a)
+                home, away = h.name, a.name
+            _apply_known(by_name, home, away, hs, as_)
+            matches.append((home, away, hs, as_))
+    return rank_group(teams, matches, rng)
 
 
 def _seed_score(t, place):
@@ -201,7 +242,7 @@ def simulate_tournament(team_defs, sampler, calib, rng, on_group_result=None,
             # si el anfitrion es 'a', ponerlo de local para la ventaja
             if a.name in HOSTS and h.name not in HOSTS:
                 h, a = a, h
-            w = _play(h, a, sampler, calib, neutral, knockout=True, rng=rng)
+            w = _play_knockout(h, a, sampler, calib, neutral, rng)
             winners.append(w)
         next_size = round_size // 2
         label = ROUND_NAMES.get(next_size)
