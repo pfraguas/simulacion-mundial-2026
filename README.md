@@ -29,7 +29,6 @@ El **xG** es excelente para fútbol de clubes (datos de tiros, muestras grandes)
 **poco confiable para selecciones**: juegan pocos partidos al año, los planteles rotan y
 la muestra es chica y ruidosa. Los modelos serios del Mundial (FiveThirtyEight SPI, PELE
 de Nate Silver) usan un rating de fuerza tipo Elo alimentando un modelo Poisson/Dixon-Coles.
-El xG queda como posible señal secundaria a futuro (ver *Limitaciones*).
 
 ## Datos
 
@@ -88,8 +87,10 @@ python src/live.py 50000                        # simulación in-tournament
   de grupo > segundos > terceros) en un cuadro sembrado estándar de 32 que separa a los
   mejores y evita revanchas del mismo grupo en la primera ronda. El **mapeo posicional
   oficial FIFA** de los 8 mejores terceros queda como refinamiento futuro.
-- **Desempates de grupo**: puntos → diferencia de gol → goles a favor → sorteo. No se
-  aplica el head-to-head exacto.
+- **Desempates de grupo**: siguen el orden oficial FIFA 2026 — puntos → head-to-head
+  (puntos/dif. de gol/goles entre los empatados) → dif. de gol general → goles a favor
+  general → sorteo. Sólo se simplifica la re-aplicación recursiva de FIFA cuando un
+  subconjunto de empatados se separa (caso de borde poco frecuente).
 - **Localía**: ventaja Elo (+100) sólo para los anfitriones (EE.UU., México, Canadá);
   el resto se juega en cancha neutral.
 - **Supremacía lineal**: a diferencias de Elo muy grandes el λ del débil se satura en un
